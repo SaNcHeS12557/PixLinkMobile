@@ -15,9 +15,15 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import org.json.JSONObject;
+
 public class PixlinkForegroundService extends Service {
     private static final String TAG = "PixLinkForegroundService";
     private WebSocketClient webSocketClient;
+    private DeviceStatusBuilder deviceStatusBuilder;
+    private DeviceMetricsCollector deviceMetricsCollector;
+    private java.util.concurrent.ScheduledExecutorService scheduler;
+
 
     String channelId = "ws_channel";
     String channelName = "WebSocket Channel";
@@ -28,12 +34,7 @@ public class PixlinkForegroundService extends Service {
 
         startForeground(1, createNotification());
         webSocketClient = new WebSocketClient();
-    }
-
-    public void connectToWebSocket(String url) {
-        if (webSocketClient != null) {
-            webSocketClient.connect(url);
-        }
+        deviceStatusBuilder = new DeviceStatusBuilder();
     }
 
     private Notification createNotification() {
@@ -50,7 +51,7 @@ public class PixlinkForegroundService extends Service {
                 manager.createNotificationChannel(channel);
         }
         Notification.Builder builder = null;
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             builder = new Notification.Builder(this, channelId);
         } else {
             builder = new Notification.Builder(this);
@@ -63,38 +64,38 @@ public class PixlinkForegroundService extends Service {
                 .build();
     }
 
-    private void registerReceivers() {
-        IntentFilter batteryFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        registerReceiver(batteryReceiver, batteryFilter);
-    }
-
-    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-            String message = "Battery level: " + level + "%";
-            Log.d(TAG, message);
-            if(webSocketClient != null) webSocketClient.sendMessage(message);
-        }
-    };
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if(intent != null && intent.hasExtra("ws_url")) {
             String url = intent.getStringExtra("ws_url");
             Log.d(TAG, "Received WebSocket URL: " + url);
             if(webSocketClient != null) webSocketClient.connect(url);
-            registerReceivers();
+
+            deviceMetricsCollector = new DeviceMetricsCollector(this);
+            startSendingLoop();
         }
 
         return START_STICKY;
     }
 
+    private void startSendingLoop() {
+        scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleWithFixedDelay(() -> {
+            try{
+                JSONObject status = DeviceStatusBuilder.buildStatus(this, deviceMetricsCollector);
+                Log.d(TAG, "Sending status: " + status.toString());
+                webSocketClient.sendMessage(status);
+            } catch (Exception e) {
+                Log.e(TAG, "Error sending device status", e);
+            }
+        }, 0, 10, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(batteryReceiver);
         if(webSocketClient != null) webSocketClient.close();
+        if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdown();
     }
 
     @Nullable

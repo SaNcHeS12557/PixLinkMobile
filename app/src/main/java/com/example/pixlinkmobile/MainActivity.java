@@ -1,5 +1,7 @@
 package com.example.pixlinkmobile;
 
+import static androidx.core.content.ContextCompat.startForegroundService;
+
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -95,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
 
     private void startPixlinkService(String url) {
         Intent serviceIntent = new Intent(this, PixlinkForegroundService.class);

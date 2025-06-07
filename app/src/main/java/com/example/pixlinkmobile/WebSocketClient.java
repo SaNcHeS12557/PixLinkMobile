@@ -1,6 +1,9 @@
 package com.example.pixlinkmobile;
 
 import android.util.Log;
+
+import org.json.JSONObject;
+
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.WebSocket;
@@ -45,9 +48,12 @@ public class WebSocketClient {
         });
     }
 
-    public void sendMessage(String message) {
-        if (webSocket != null) {
-            webSocket.send(message);
+    public void sendMessage(JSONObject json) {
+        if (webSocket != null && json != null) {
+            boolean sendStatus = webSocket.send(json.toString());
+            Log.d(TAG, "WebSocket send result -> " + sendStatus);
+        } else {
+            Log.w(TAG, "WebSocket is null or JSON -> NOT SENT");
         }
     }
 
