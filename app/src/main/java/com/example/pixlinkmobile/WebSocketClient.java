@@ -2,6 +2,8 @@ package com.example.pixlinkmobile;
 
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import org.json.JSONObject;
 
 import okhttp3.OkHttpClient;
@@ -25,24 +27,24 @@ public class WebSocketClient {
         webSocket = client.newWebSocket(request, new WebSocketListener() {
 
             @Override
-            public void onOpen(WebSocket webSocket, Response response) {
+            public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
                 Log.d(TAG, "Connected to " + url);
-                webSocket.send("Hello from Android!!!");
+//                webSocket.send("Hello from Android!!!");
             }
 
             @Override
-            public void onMessage(WebSocket webSocket, String text) {
+            public void onMessage(@NonNull WebSocket webSocket, @NonNull String text) {
                 Log.d(TAG, "Received message: " + text);
             }
 
             @Override
-            public void onClosing(WebSocket webSocket, int code, String reason) {
+            public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                 Log.d(TAG, "Closing: " + code + " / " + reason);
                 webSocket.close(code, reason);
             }
 
             @Override
-            public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+            public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, Response response) {
                 Log.e(TAG, "Connection error: ", t);
             }
         });
