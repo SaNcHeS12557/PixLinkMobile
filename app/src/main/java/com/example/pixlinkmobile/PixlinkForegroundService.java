@@ -22,6 +22,7 @@ public class PixlinkForegroundService extends Service {
     private WebSocketClient webSocketClient;
     private DeviceStatusBuilder deviceStatusBuilder;
     private DeviceMetricsCollector deviceMetricsCollector;
+    private ClipboardSyncManager clipboardSyncManager;
     private java.util.concurrent.ScheduledExecutorService scheduler;
 
 
