@@ -14,6 +14,7 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.journeyapps.barcodescanner.ScanContract;
@@ -26,6 +27,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private String lastScannedUrl;
 
+    // TODO QR Scanner Launcher class
     private final ActivityResultLauncher<ScanOptions> qrScannerLauncher =
             registerForActivityResult(new ScanContract(), result -> {
                 if (result.getContents() != null) {
@@ -44,16 +46,9 @@ public class MainActivity extends AppCompatActivity {
         if (scannedText.startsWith("ws://")) {
             Log.d(TAG, "Valid WebSocket URL: " + scannedText);
 
-            String[] neededPermissions = new String[]{
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.FOREGROUND_SERVICE_DATA_SYNC
-            };
-
-            String[] missing = PermissionsManager.getMissingPermissions(this, neededPermissions);
-
-            if (missing.length > 0) {
+            if (!PermissionsManager.arePermissionsGranted(this, PermissionsManager.QR_SCAN_PERMISSIONS)) {
                 lastScannedUrl = scannedText;
-                PermissionsManager.requestPermissions(this, missing, PermissionsManager.getGenericRequestCode());
+                PermissionsManager.requestPermissionsIfMissing(this, PermissionsManager.QR_SCAN_PERMISSIONS, 1024);
                 return;
             }
 
@@ -69,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        PermissionsManager.requestAllPermissionsIfNeeded(this);
+        PermissionsManager.requestPermissionsIfMissing(this, PermissionsManager.REQUIRED_PERMISSIONS, 1001);
 
         Button scanQrButton = findViewById(R.id.scanQrButton);
         scanQrButton.setOnClickListener(v -> {
@@ -87,10 +82,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
+    protected void onResume() {
+        super.onResume();
+        if (!PermissionsManager.arePermissionsGranted(this, PermissionsManager.REQUIRED_PERMISSIONS)) {
+            PermissionsManager.showSettingsDialog(this);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        PermissionsManager.handlePermissionsResult(this, requestCode, grantResults);
+        if (!PermissionsManager.arePermissionsGranted(this, PermissionsManager.REQUIRED_PERMISSIONS)) {
+            PermissionsManager.showSettingsDialog(this);
+        }
+
+        Log.d("PermissionsDebug", "Checking permissions...");
+        for (String permission : PermissionsManager.REQUIRED_PERMISSIONS) {
+            boolean granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED;
+            Log.d("PermissionsDebug", permission + ": " + granted);
+        }
+
+        if (requestCode == 1024 && lastScannedUrl != null) {
+            if (PermissionsManager.arePermissionsGranted(this, PermissionsManager.QR_SCAN_PERMISSIONS)) {
+                startPixlinkService(lastScannedUrl);
+                lastScannedUrl = null;
+            } else {
+                Toast.makeText(this, "Still missing required permissions", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void startPixlinkService(String url) {
