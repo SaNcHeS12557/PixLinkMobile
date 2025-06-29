@@ -16,10 +16,11 @@ public class WebSocketClient {
 
     private static final String TAG = "WebSocketClient";
     private WebSocket webSocket;
+    private WebSocketListenerEvents listener;
 
-    public void connect(String url) {
+    public void connect(String url, WebSocketListenerEvents listener) {
+        this.listener = listener;
         OkHttpClient client = new OkHttpClient();
-
         Request request = new Request.Builder()
                 .url(url)
                 .build();
@@ -29,12 +30,12 @@ public class WebSocketClient {
             @Override
             public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
                 Log.d(TAG, "Connected to " + url);
-//                webSocket.send("Hello from Android!!!");
             }
 
             @Override
             public void onMessage(@NonNull WebSocket webSocket, @NonNull String text) {
                 Log.d(TAG, "Received message: " + text);
+                if(listener != null) listener.onWebSocketMessage(text);
             }
 
             @Override
