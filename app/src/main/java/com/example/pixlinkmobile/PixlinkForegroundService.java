@@ -17,11 +17,12 @@ import androidx.annotation.Nullable;
 
 import org.json.JSONObject;
 
-public class PixlinkForegroundService extends Service {
+public class PixlinkForegroundService extends Service implements WebSocketListenerEvents {
     private static final String TAG = "PixLinkForegroundService";
     private WebSocketClient webSocketClient;
     private DeviceStatusBuilder deviceStatusBuilder;
     private DeviceMetricsCollector deviceMetricsCollector;
+    private ClipboardSyncManager clipboardSyncManager;
     private java.util.concurrent.ScheduledExecutorService scheduler;
 
 
@@ -35,6 +36,7 @@ public class PixlinkForegroundService extends Service {
         startForeground(1, createNotification());
         webSocketClient = new WebSocketClient();
         deviceStatusBuilder = new DeviceStatusBuilder();
+        clipboardSyncManager = new ClipboardSyncManager(this);
     }
 
     private Notification createNotification() {
@@ -69,7 +71,7 @@ public class PixlinkForegroundService extends Service {
         if(intent != null && intent.hasExtra("ws_url")) {
             String url = intent.getStringExtra("ws_url");
             Log.d(TAG, "Received WebSocket URL: " + url);
-            if(webSocketClient != null) webSocketClient.connect(url);
+            if(webSocketClient != null) webSocketClient.connect(url, this);
 
             deviceMetricsCollector = new DeviceMetricsCollector(this);
             startSendingLoop();
@@ -102,5 +104,12 @@ public class PixlinkForegroundService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onWebSocketMessage(String text) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            clipboardSyncManager.handleIncomingData(text);
+        });
     }
 }

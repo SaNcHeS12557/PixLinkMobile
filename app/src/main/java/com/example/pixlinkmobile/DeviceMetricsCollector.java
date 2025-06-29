@@ -50,7 +50,7 @@ public class DeviceMetricsCollector {
     protected void collectMetrics() {
         batteryInfo = collectBatteryInfo();
         networkInfo = collectNetworkInfo();
-        bluetoothInfo = collectBluetoothInfo();
+//        bluetoothInfo = collectBluetoothInfo();
         wifiInfo = collectWifiInfo();
     }
 
@@ -137,6 +137,7 @@ public class DeviceMetricsCollector {
         BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
         BluetoothAdapter adapter = bluetoothManager.getAdapter();
 
+
         if(adapter == null) {
             try {
                 bluetoothJson.put("enabled", false);
@@ -180,8 +181,6 @@ public class DeviceMetricsCollector {
 
         return bluetoothJson;
     }
-
-    // GETTERS:
 
     public JSONObject getBatteryInfo() {
         return this.batteryInfo;
