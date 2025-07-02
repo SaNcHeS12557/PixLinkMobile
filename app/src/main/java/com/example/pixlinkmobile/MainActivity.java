@@ -1,11 +1,15 @@
 package com.example.pixlinkmobile;
 import android.Manifest;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
@@ -15,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.journeyapps.barcodescanner.ScanContract;
@@ -26,6 +31,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private String lastScannedUrl;
+    private Button launchTouchpadButton;
 
     // TODO QR Scanner Launcher class
     private final ActivityResultLauncher<ScanOptions> qrScannerLauncher =
@@ -79,7 +85,28 @@ public class MainActivity extends AppCompatActivity {
             qrScannerLauncher.launch(options);
         });
 
+        launchTouchpadButton = findViewById(R.id.launchTouchpadButton);
+        launchTouchpadButton.setOnClickListener(v->{
+            Intent intent = new Intent(this, TouchpadActivity.class);
+            startActivity(intent);
+        });
+
+        LocalBroadcastManager.getInstance(this).registerReceiver(mConnectionReceiver, new IntentFilter("connection-status"));
     }
+
+    private BroadcastReceiver mConnectionReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            boolean connected = intent.getBooleanExtra("connected", false);
+            if(connected) {
+                findViewById(R.id.scanQrButton).setVisibility(View.GONE);
+                launchTouchpadButton.setVisibility(View.VISIBLE);
+            } else {
+                findViewById(R.id.scanQrButton).setVisibility(View.VISIBLE);
+                launchTouchpadButton.setVisibility(View.GONE);
+            }
+        }
+    };
 
     @Override
     protected void onResume() {
@@ -87,6 +114,12 @@ public class MainActivity extends AppCompatActivity {
         if (!PermissionsManager.arePermissionsGranted(this, PermissionsManager.REQUIRED_PERMISSIONS)) {
             PermissionsManager.showSettingsDialog(this);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mConnectionReceiver);
+        super.onDestroy();
     }
 
     @Override

@@ -14,6 +14,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.json.JSONObject;
 
@@ -34,7 +35,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
         super.onCreate();
 
         startForeground(1, createNotification());
-        webSocketClient = new WebSocketClient();
+        webSocketClient = WebSocketClient.getInstance();
         deviceStatusBuilder = new DeviceStatusBuilder();
         clipboardSyncManager = new ClipboardSyncManager(this);
     }
@@ -104,6 +105,21 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onOpen() {
+        Intent intent = new Intent("connection-status");
+        intent.putExtra("connected", true);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+
+    }
+
+    @Override
+    public void onFailure() {
+        Intent intent = new Intent("connection-status");
+        intent.putExtra("connected", false);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     @Override
