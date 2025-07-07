@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PixLinkMobile"
 include(":app")
- 
+include(":JavaTester")
