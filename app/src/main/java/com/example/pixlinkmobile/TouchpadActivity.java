@@ -4,11 +4,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import okio.ByteString;
 
@@ -18,16 +14,13 @@ public class TouchpadActivity extends AppCompatActivity {
     private ProtocolBuilder protocolBuilder;
     private WebSocketClient webSocketClient;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_touchpad);
 
         webSocketClient = WebSocketClient.getInstance();
-
         protocolBuilder = new ProtocolBuilder();
-
         View touchpadArea = findViewById(R.id.touchpad_view);
         Button closeButton = findViewById(R.id.close_touchpad_button);
 
@@ -35,13 +28,31 @@ public class TouchpadActivity extends AppCompatActivity {
             finish();
         });
 
-        inputHandler = new InputHandler((dx, dy) -> {
-            if (webSocketClient != null) {
-                // labda params cast to short TODO FIX
-                byte[] packet = protocolBuilder.buildMouseMovePacket((short) dx, (short)dy);
-                webSocketClient.send(ByteString.of(packet));
-            }
-        });
+        inputHandler = new InputHandler(this,
+                // MoveListener
+                (dx, dy) -> {
+                    if (webSocketClient != null) {
+                        byte[] packet = protocolBuilder.buildMouseMovePacket((short) dx, (short) dy);
+                        webSocketClient.send(ByteString.of(packet));
+                    }
+                },
+
+                // ClickListener
+                (button) -> {
+                    if (webSocketClient != null) {
+                        byte[] clickPacket = protocolBuilder.buildClickPacket(button);
+                        webSocketClient.send(ByteString.of(clickPacket));
+                    }
+                },
+
+                // ScrollListener
+                (scrollDx, scrollDy) -> {
+                    if (webSocketClient != null) {
+                        byte[] scrollPacket = protocolBuilder.buildScrollPacket((short) scrollDx, (short) scrollDy);
+                        webSocketClient.send(ByteString.of(scrollPacket));
+                    }
+                }
+        );
 
         touchpadArea.setOnTouchListener(inputHandler);
     }

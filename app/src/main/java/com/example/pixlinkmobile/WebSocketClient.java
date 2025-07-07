@@ -84,7 +84,7 @@ public class WebSocketClient {
             boolean sendStatus = webSocket.send(bytes);
             Log.d(TAG, "WebSocket send result -> " + sendStatus);
         } else {
-            Log.w(TAG, "WebSocket is null or JSON -> NOT SENT");
+            Log.w(TAG, "WebSocket is null -> NOT SENT");
         }
     }
 

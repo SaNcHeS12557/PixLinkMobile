@@ -22,14 +22,6 @@ class Protocol {
         public final byte code;
         MouseButton(byte code) { this.code = code; }
     }
-
-    enum ZoomType {
-        IN((byte) 0x01),
-        OUT((byte) 0x02);
-
-        public final byte code;
-        ZoomType(byte code) { this.code = code; }
-    }
 }
 
 // (big endian notation):
@@ -38,7 +30,7 @@ class Protocol {
 // scroll (5 bytes) - <1 byte - commandType> <2 bytes - dx> <2 bytes - dy>
 // click (2 bytes) - <1 byte - commandType> <1 byte - buttonType>
 
-// TODO KEYBOARD INPUT
+// KEYBOARD INPUT IS USELESS - DESKTOP APP WILL CREATE SCREEN KEYBOARD
 
 public class ProtocolBuilder {
     private static final ByteOrder BYTE_ORDER = ByteOrder.BIG_ENDIAN;
@@ -53,10 +45,10 @@ public class ProtocolBuilder {
     }
 
     public byte[] buildZoomPacket(byte zoomLevel) {
-        ByteBuffer buffer = ByteBuffer.allocate(3);
+        ByteBuffer buffer = ByteBuffer.allocate(2);
         buffer.order(BYTE_ORDER);
         buffer.put(Protocol.Command.ZOOM.code);
-        buffer.putShort(zoomLevel);
+        buffer.put(zoomLevel);
         return buffer.array();
     }
 
@@ -64,16 +56,20 @@ public class ProtocolBuilder {
         ByteBuffer buffer = ByteBuffer.allocate(5);
         buffer.order(BYTE_ORDER);
         buffer.put(Protocol.Command.MOUSE_SCROLL.code);
+
+        if (Math.abs(dx) > Math.abs(dx)) dy = 0;
+        else dx = 0;
+
         buffer.putShort(dx);
         buffer.putShort(dy);
         return buffer.array();
     }
 
-    public byte[] buildClickPacket(short buttonType) {
+    public byte[] buildClickPacket(Protocol.MouseButton button) {
         ByteBuffer buffer = ByteBuffer.allocate(2);
         buffer.order(BYTE_ORDER);
         buffer.put(Protocol.Command.MOUSE_CLICK.code);
-        buffer.putShort(buttonType);
+        buffer.put(button.code);
         return buffer.array();
     }
 }
