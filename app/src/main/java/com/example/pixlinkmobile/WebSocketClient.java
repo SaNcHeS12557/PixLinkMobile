@@ -1,8 +1,11 @@
 package com.example.pixlinkmobile;
 
 import android.util.Log;
+
 import androidx.annotation.NonNull;
+
 import org.json.JSONObject;
+
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.WebSocket;
@@ -16,11 +19,13 @@ public class WebSocketClient {
     private WebSocket webSocket;
     private WebSocketListenerEvents listener;
     private static WebSocketClient instance;
+    private volatile boolean isConnected = false;
 
-    private WebSocketClient() {}
+    private WebSocketClient() {
+    }
 
     public static synchronized WebSocketClient getInstance() {
-        if(instance == null) instance = new WebSocketClient();
+        if (instance == null) instance = new WebSocketClient();
 
         return instance;
     }
@@ -36,34 +41,28 @@ public class WebSocketClient {
             @Override
             public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
                 Log.d(TAG, "Connected to " + url);
-
-                if(listener != null) {
-                    listener.onOpen();
-                }
+                isConnected = true;
+                if (listener != null) listener.onOpen();
             }
 
             @Override
             public void onMessage(@NonNull WebSocket webSocket, @NonNull String text) {
                 Log.d(TAG, "Received message: " + text);
-
-                if(listener != null) {
-                    listener.onWebSocketMessage(text);
-                }
+                if (listener != null) listener.onWebSocketMessage(text);
             }
 
             @Override
             public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                 Log.d(TAG, "Closing: " + code + " / " + reason);
+                isConnected = false;
                 webSocket.close(code, reason);
             }
 
             @Override
             public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, Response response) {
                 Log.e(TAG, "Connection error: ", t);
-
-                if(listener != null) {
-                    listener.onFailure();
-                }
+                isConnected = false;
+                if (listener != null) listener.onFailure();
             }
         });
     }
@@ -89,8 +88,23 @@ public class WebSocketClient {
     }
 
     public void close() {
-        if (webSocket != null) {
-            webSocket.close(1000, "Bye!");
-        }
+        if (webSocket != null) webSocket.close(1000, "Bye!");
+        isConnected = false;
+    }
+
+    public boolean isConnected() {
+        return isConnected;
+    }
+
+    public void setConnected(boolean connected) {
+        isConnected = connected;
+    }
+
+    public WebSocketListenerEvents getListener() {
+        return listener;
+    }
+
+    public void setListener(WebSocketListenerEvents listener) {
+        this.listener = listener;
     }
 }

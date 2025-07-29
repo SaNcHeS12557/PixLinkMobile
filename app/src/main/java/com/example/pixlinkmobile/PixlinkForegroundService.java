@@ -1,5 +1,6 @@
 package com.example.pixlinkmobile;
 
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -16,14 +17,20 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
-public class PixlinkForegroundService extends Service implements WebSocketListenerEvents {
+import okio.ByteString;
+
+public class PixlinkForegroundService extends Service implements WebSocketListenerEvents, ScreenMirroringManager.StateListener {
     private static final String TAG = "PixLinkForegroundService";
+
     private WebSocketClient webSocketClient;
-    private DeviceStatusBuilder deviceStatusBuilder;
+    //    private DeviceStatusBuilder deviceStatusBuilder;
     private DeviceMetricsCollector deviceMetricsCollector;
     private ClipboardSyncManager clipboardSyncManager;
+    private ScreenMirroringManager screenMirroringManager;
+
     private java.util.concurrent.ScheduledExecutorService scheduler;
 
 
@@ -36,8 +43,20 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
 
         startForeground(1, createNotification());
         webSocketClient = WebSocketClient.getInstance();
-        deviceStatusBuilder = new DeviceStatusBuilder();
+//        deviceStatusBuilder = new DeviceStatusBuilder();
         clipboardSyncManager = new ClipboardSyncManager(this);
+
+        initScreenMirroring();
+    }
+
+    private void initScreenMirroring() {
+        screenMirroringManager = new ScreenMirroringManager(this, (frame) -> {
+            if (webSocketClient != null && webSocketClient.isConnected()) {
+                byte[] packet = new ProtocolBuilder().buildVideoFramePacket(frame);
+                webSocketClient.send(ByteString.of(packet));
+            }
+        });
+        screenMirroringManager.setStateListener(this);
     }
 
     private Notification createNotification() {
@@ -50,7 +69,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
             );
 
             NotificationManager manager = getSystemService(NotificationManager.class);
-            if(manager != null)
+            if (manager != null)
                 manager.createNotificationChannel(channel);
         }
         Notification.Builder builder = null;
@@ -69,13 +88,25 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(intent != null && intent.hasExtra("ws_url")) {
-            String url = intent.getStringExtra("ws_url");
-            Log.d(TAG, "Received WebSocket URL: " + url);
-            if(webSocketClient != null) webSocketClient.connect(url, this);
+        if (intent != null) {
+            final String action = intent.getAction();
 
-            deviceMetricsCollector = new DeviceMetricsCollector(this);
-            startSendingLoop();
+            if ("ACTION_START_MIRRORING_NOW".equals(action)) {
+                Log.d(TAG, "Received action to start mirroring");
+                Intent projectionData = intent.getParcelableExtra("EXTRA_PROJECTION_DATA");
+
+                if (screenMirroringManager != null && projectionData != null) {
+                    int resultCode = projectionData.getIntExtra("EXTRA_RESULT_CODE", Activity.RESULT_CANCELED);
+                    screenMirroringManager.start(resultCode, projectionData);
+                }
+            } else if (intent.hasExtra("ws_url")) {
+                String url = intent.getStringExtra("ws_url");
+                Log.d(TAG, "Received WebSocket URL: " + url);
+                if (webSocketClient != null) webSocketClient.connect(url, this);
+
+                deviceMetricsCollector = new DeviceMetricsCollector(this);
+                startSendingLoop();
+            }
         }
 
         return START_STICKY;
@@ -84,7 +115,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     private void startSendingLoop() {
         scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
-            try{
+            try {
                 JSONObject status = DeviceStatusBuilder.buildStatus(this, deviceMetricsCollector);
                 Log.d(TAG, "Sending status: " + status.toString());
                 webSocketClient.sendMessage(status);
@@ -97,7 +128,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if(webSocketClient != null) webSocketClient.close();
+        if (webSocketClient != null) webSocketClient.close();
         if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdown();
     }
 
@@ -125,7 +156,39 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     @Override
     public void onWebSocketMessage(String text) {
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-            clipboardSyncManager.handleIncomingData(text);
+            try {
+                JSONObject json = new JSONObject(text);
+                if(json.has("command")) {
+                    String command = json.getString("command");
+                    if("mirroring_stopped".equals(command)) {
+                        Log.d(TAG, "Received mirroring stopped command from PC");
+                        if(screenMirroringManager != null) {
+                            screenMirroringManager.stop();
+                        }
+                        return;
+                    }
+                }
+                clipboardSyncManager.handleIncomingData(text);
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing JSON", e);
+            }
         });
+    }
+
+    @Override
+    public void onMirroringSessionStopped() {
+        if(webSocketClient != null && webSocketClient.isConnected()) {
+            try {
+                JSONObject json = new JSONObject();
+                json.put("type", "mirroring_stopped");
+                webSocketClient.sendMessage(json);
+            } catch (JSONException e) {
+                Log.e(TAG, "Error creating JSON for stop event", e);
+            }
+        }
+
+        if(screenMirroringManager != null) {
+            screenMirroringManager.stop();
+        }
     }
 }
