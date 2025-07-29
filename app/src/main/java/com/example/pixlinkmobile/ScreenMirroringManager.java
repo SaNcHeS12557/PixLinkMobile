@@ -2,20 +2,20 @@ package com.example.pixlinkmobile;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
-import android.media.Image;
-import android.media.ImageReader;
+import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaFormat;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.DisplayMetrics;
 import android.util.Log;
-
-import java.io.ByteArrayOutputStream;
+import android.view.Surface;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class ScreenMirroringManager {
     private static final String TAG = "ScreenMirroringManager";
@@ -25,13 +25,13 @@ public class ScreenMirroringManager {
     private MediaProjectionManager projectionManager;
     private MediaProjection mediaProjection;
     private VirtualDisplay virtualDisplay;
-    private ImageReader imageReader;
-    private HandlerThread handlerThread;
-    private Handler handler;
+    private MediaCodec mediaCodec;
+    private Thread encoderThread;
+    private MediaProjection.Callback projectionCallback;
+    private byte[] configData = null;
     private int screenWidth;
     private int screenHeight;
     private int screenDensity;
-    private MediaProjection.Callback projectionCallback;
 
     public interface FrameCallback {
         void onFrame(byte[] frameData);
@@ -65,15 +65,41 @@ public class ScreenMirroringManager {
             return;
         }
 
-        // eco mode :)
-        int targetWidth = screenWidth / 2;
-        int targetHeight = screenHeight / 2;
+        try {
+            mediaCodec = MediaCodec.createEncoderByType("video/avc");
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to create H264 encoder", e);
+            return;
+        }
+//        // eco mode :)
+//        int targetWidth = screenWidth / 2;
+//        int targetHeight = screenHeight / 2;
+//
+////        imageReader = ImageReader.newInstance(targetWidth, targetHeight, PixelFormat.RGBA_8888, 2);
+//        MediaFormat format = MediaFormat.createVideoFormat("video/avc", targetWidth, targetHeight);
+//        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+//        format.setInteger(MediaFormat.KEY_BIT_RATE, 2 * 1024 * 1024); // 2 Mbps
+//        format.setInteger(MediaFormat.KEY_FRAME_RATE, 30); // 30 fps
+//        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1); // 1 I frame per second
 
-        imageReader = ImageReader.newInstance(targetWidth, targetHeight, PixelFormat.RGBA_8888, 2);
+        // beautiful pic
+        int targetWidth = screenWidth;
+        int targetHeight = screenHeight;
 
-        handlerThread = new HandlerThread(TAG);
-        handlerThread.start();
-        handler = new Handler(handlerThread.getLooper());
+        MediaFormat format = MediaFormat.createVideoFormat("video/avc", targetWidth, targetHeight);
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, 8 * 1024 * 1024); // 8 Mbps
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, 60); // 60 fps
+        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1); // 1 I frame per second
+
+        mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+
+        Surface inputSurface = mediaCodec.createInputSurface();
+
+        mediaCodec.start();
+
+        encoderThread = new Thread(this::drainEncoder, "EncoderThread");
+        encoderThread.start();
 
         projectionCallback = new MediaProjection.Callback() {
             @Override
@@ -84,65 +110,74 @@ public class ScreenMirroringManager {
                 }
             }
         };
-        mediaProjection.registerCallback(projectionCallback, handler);
+        mediaProjection.registerCallback(projectionCallback, new Handler(context.getMainLooper()));
 
-        imageReader.setOnImageAvailableListener(reader -> {
-            try (Image image = reader.acquireLatestImage()) {
-                if(image != null) processImage(image, targetWidth, targetHeight);
-            } catch (Exception e) {
-                Log.e(TAG, "Err processing image", e);
-            }
-        }, handler);
-
-        createVirtualDisplay(targetWidth, targetHeight);
-        Log.d(TAG, "Screen Mirroring started!!");
-    }
-
-    private  void processImage(final Image image, int width, int height) {
-        Image.Plane[] planes = image.getPlanes();
-        java.nio.ByteBuffer buffer = planes[0].getBuffer();
-
-        int pixelStride = planes[0].getPixelStride();
-        int rowStride = planes[0].getRowStride();
-        int rowPadding = rowStride - pixelStride * width;
-
-        Bitmap bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888);
-        bitmap.copyPixelsFromBuffer(buffer);
-
-        Bitmap croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height);
-
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 70, stream); // 70% quality
-        byte[] frameData = stream.toByteArray();
-
-        if (frameCallback != null) frameCallback.onFrame(frameData);
-    }
-
-    private void createVirtualDisplay(int width, int height) {
         virtualDisplay = mediaProjection.createVirtualDisplay(TAG,
-                width, height, screenDensity,
+                targetWidth, targetHeight, screenDensity,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                imageReader.getSurface(), null, handler
-                );
+                inputSurface,
+                null, null);
+        Log.d(TAG, "H.264 encoding session started!!");
+    }
+
+    void drainEncoder() {
+        MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+
+        while(!Thread.currentThread().isInterrupted()) {
+            try {
+                int outputBufferIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, 10000); // 10 ms wait
+                if(outputBufferIndex >= 0) {
+                    ByteBuffer outputBuffer = mediaCodec.getOutputBuffer(outputBufferIndex);
+                    if(outputBuffer != null) {
+                        byte[] outData = new byte[bufferInfo.size];
+                        outputBuffer.get(outData);
+
+                        // outData contains ready to send H264 packet
+                        if (frameCallback != null) frameCallback.onFrame(outData);
+                    }
+                    mediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Encoder drain thread err", e);
+                break;
+            }
+        }
     }
 
     public void stop() {
-        if (handlerThread != null) {
-            handlerThread.quitSafely();
-            handlerThread = null;
+        if (encoderThread != null) {
+            encoderThread.interrupt();
+            try {
+                encoderThread.join(100);
+            } catch (InterruptedException e) {
+                Log.e(TAG, "Failed to join encoder thread", e);
+            }
+            encoderThread = null;
         }
+
         if (mediaProjection != null) {
+            if (projectionCallback != null) {
+                mediaProjection.unregisterCallback(projectionCallback);
+            }
             mediaProjection.stop();
             mediaProjection = null;
         }
+
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
         }
-        if (imageReader != null) {
-            imageReader.close();
-            imageReader = null;
+
+        if (mediaCodec != null) {
+            try {
+                mediaCodec.stop();
+                mediaCodec.release();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to release encoder", e);
+            }
+            mediaCodec = null;
         }
+
         Log.d(TAG, "Screen mirroring stopped");
     }
 }

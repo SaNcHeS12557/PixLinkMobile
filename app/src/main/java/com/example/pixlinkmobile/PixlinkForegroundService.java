@@ -98,6 +98,14 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
                 if (screenMirroringManager != null && projectionData != null) {
                     int resultCode = projectionData.getIntExtra("EXTRA_RESULT_CODE", Activity.RESULT_CANCELED);
                     screenMirroringManager.start(resultCode, projectionData);
+                    Log.d(TAG, "Notifying PC - mirroring started");
+                    try {
+                        JSONObject json = new JSONObject();
+                        json.put("event", "mirroring_started");
+                        webSocketClient.sendMessage(json);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Error creating JSON for start event", e);
+                    }
                 }
             } else if (intent.hasExtra("ws_url")) {
                 String url = intent.getStringExtra("ws_url");
@@ -160,7 +168,17 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
                 JSONObject json = new JSONObject(text);
                 if(json.has("command")) {
                     String command = json.getString("command");
-                    if("mirroring_stopped".equals(command)) {
+
+                    if ("init_mirroring_request".equals(command)) {
+                        Log.d(TAG, "Request from PC - init mirroring");
+                        Intent intent = new Intent(this, PermissionProxyActivity.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                        startActivity(intent);
+                        return;
+                    }
+
+                    if("stop_mirroring".equals(command)) {
                         Log.d(TAG, "Received mirroring stopped command from PC");
                         if(screenMirroringManager != null) {
                             screenMirroringManager.stop();
@@ -180,7 +198,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
         if(webSocketClient != null && webSocketClient.isConnected()) {
             try {
                 JSONObject json = new JSONObject();
-                json.put("type", "mirroring_stopped");
+                json.put("event", "mirroring_stopped");
                 webSocketClient.sendMessage(json);
             } catch (JSONException e) {
                 Log.e(TAG, "Error creating JSON for stop event", e);
