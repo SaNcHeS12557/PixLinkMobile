@@ -9,7 +9,8 @@ class Protocol {
         MOUSE_MOVE((byte) 0x01),
         MOUSE_SCROLL((byte) 0x02),
         MOUSE_CLICK((byte) 0x03),
-        ZOOM((byte) 0x04);
+        ZOOM((byte) 0x04),
+        VIDEO_FRAME((byte) 0x05);
 
         public final byte code;
         Command(byte code) { this.code = code; }
@@ -22,6 +23,15 @@ class Protocol {
         public final byte code;
         MouseButton(byte code) { this.code = code; }
     }
+
+    enum FrameFlags {
+        NONE((byte) 0x00),
+        CONFIG((byte) 0x01),
+        FRAME((byte) 0x02);
+
+        public final byte code;
+        FrameFlags(byte code) { this.code = code; };
+    }
 }
 
 // (big endian notation):
@@ -31,6 +41,7 @@ class Protocol {
 // click (2 bytes) - <1 byte - commandType> <1 byte - buttonType>
 
 // KEYBOARD INPUT IS USELESS - DESKTOP APP WILL CREATE SCREEN KEYBOARD
+//
 
 public class ProtocolBuilder {
     private static final ByteOrder BYTE_ORDER = ByteOrder.BIG_ENDIAN;
@@ -70,6 +81,14 @@ public class ProtocolBuilder {
         buffer.order(BYTE_ORDER);
         buffer.put(Protocol.Command.MOUSE_CLICK.code);
         buffer.put(button.code);
+        return buffer.array();
+    }
+
+    public byte[] buildVideoFramePacket(byte[] frameData) {
+        ByteBuffer buffer = ByteBuffer.allocate(1 + frameData.length);
+        buffer.order(BYTE_ORDER);
+        buffer.put(Protocol.Command.VIDEO_FRAME.code);
+        buffer.put(frameData);
         return buffer.array();
     }
 }

@@ -11,6 +11,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -22,6 +23,7 @@ public class MainActivity extends AppCompatActivity implements QRScanListener {
     private static final String TAG = "MainActivity";
     private String lastScannedUrl;
     private Button launchTouchpadButton;
+
     private QRScannerHandler qrScannerHandler;
 
     @Override
@@ -29,36 +31,22 @@ public class MainActivity extends AppCompatActivity implements QRScanListener {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        qrScannerHandler = new QRScannerHandler(this,this);
-
+        qrScannerHandler = new QRScannerHandler(this, this);
         PermissionsManager.requestPermissionsIfMissing(this, PermissionsManager.REQUIRED_PERMISSIONS, 1001);
+        LocalBroadcastManager.getInstance(this).registerReceiver(mConnectionReceiver, new IntentFilter("connection-status"));
 
         Button scanQrButton = findViewById(R.id.scanQrButton);
-        scanQrButton.setOnClickListener(v -> {
-            Log.d(TAG, "Scan QR button clicked");
-            qrScannerHandler.launchScanner();
-        });
+        scanQrButton.setOnClickListener(v -> qrScannerHandler.launchScanner());
 
         launchTouchpadButton = findViewById(R.id.launchTouchpadButton);
-        launchTouchpadButton.setOnClickListener(v->{
-            Intent intent = new Intent(this, TouchpadActivity.class);
-            startActivity(intent);
-        });
-
-        LocalBroadcastManager.getInstance(this).registerReceiver(mConnectionReceiver, new IntentFilter("connection-status"));
+        launchTouchpadButton.setOnClickListener(v -> startActivity(new Intent(this, TouchpadActivity.class)));
     }
 
-    private BroadcastReceiver mConnectionReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mConnectionReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             boolean connected = intent.getBooleanExtra("connected", false);
-            if(connected) {
-                findViewById(R.id.scanQrButton).setVisibility(View.GONE);
-                launchTouchpadButton.setVisibility(View.VISIBLE);
-            } else {
-                findViewById(R.id.scanQrButton).setVisibility(View.VISIBLE);
-                launchTouchpadButton.setVisibility(View.GONE);
-            }
+            updateUiForConnectedState(connected);
         }
     };
 
@@ -67,6 +55,18 @@ public class MainActivity extends AppCompatActivity implements QRScanListener {
         super.onResume();
         if (!PermissionsManager.arePermissionsGranted(this, PermissionsManager.REQUIRED_PERMISSIONS)) {
             PermissionsManager.showSettingsDialog(this);
+        }
+        updateUiForConnectedState(WebSocketClient.getInstance().isConnected());
+    }
+
+    private void updateUiForConnectedState(boolean currentlyConnected) {
+        Button scanQrButton = findViewById(R.id.scanQrButton);
+        if (currentlyConnected) {
+            scanQrButton.setVisibility(View.GONE);
+            launchTouchpadButton.setVisibility(View.VISIBLE);
+        } else {
+            scanQrButton.setVisibility(View.VISIBLE);
+            launchTouchpadButton.setVisibility(View.GONE);
         }
     }
 

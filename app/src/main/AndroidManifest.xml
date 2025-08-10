@@ -19,8 +19,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" /> <!-- phone access (IMEI) -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" /> <!-- storage access (Android 10–12) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> <!-- notifications (A13+) -->
+<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> &lt;!&ndash; notifications (A13+) &ndash;&gt;-->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" /> <!-- screen mirroring -->
+
 
     <application
         android:allowBackup="true"
@@ -32,6 +34,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.PixLinkMobile"
+        android:attributionTags="screen_capture"
         tools:targetApi="31">
 
         <activity
@@ -49,6 +52,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".PermissionProxyActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Translucent"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
         <activity android:name=".QRScannerActivityPortrait"
             android:screenOrientation="fullSensor"
             android:stateNotNeeded="true"
@@ -60,7 +70,8 @@
             android:name=".PixlinkForegroundService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|mediaProjection"
+            />
 
         <provider
             android:name="androidx.core.content.FileProvider"

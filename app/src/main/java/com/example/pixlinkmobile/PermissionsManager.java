@@ -4,12 +4,10 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.provider.Settings;
 
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -18,16 +16,13 @@ import java.util.List;
 
 public class PermissionsManager {
     private static final String TAG = "PermissionsManager";
-    private static final int ALL_PERMISSIONS_REQUEST_CODE = 1001;
-    private static final String PREFS_NAME = "app_prefs";
-    private static final String PERMISSIONS_REQUESTED_KEY = "permissions_requested";
-
     public static final String[] REQUIRED_PERMISSIONS = new String[]{
             android.Manifest.permission.CAMERA,
             android.Manifest.permission.RECORD_AUDIO,
             android.Manifest.permission.ACCESS_FINE_LOCATION,
             android.Manifest.permission.READ_PHONE_STATE,
             android.Manifest.permission.POST_NOTIFICATIONS,
+            android.Manifest.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION,
     };
 
     public static final String[] QR_SCAN_PERMISSIONS = new String[]{
