@@ -17,23 +17,21 @@ import androidx.appcompat.app.AppCompatActivity;
 public class PermissionProxyActivity extends AppCompatActivity {
 
     private static final String TAG = "PermissionProxy";
-    private ActivityResultLauncher<Intent> mediaProjectionLauncher;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mediaProjectionLauncher = registerForActivityResult(
+        ActivityResultLauncher<Intent> mediaProjectionLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                        Log.d(TAG, "Permission granted. Forwarding token to service.");
+                        Log.d(TAG, "Permission granted");
                         result.getData().putExtra("EXTRA_RESULT_CODE", result.getResultCode());
-
                         startMirroringService(result.getData());
                     } else {
-                        Log.w(TAG, "Permission denied by user.");
-                        Toast.makeText(this, "Screen sharing permission is required.", Toast.LENGTH_SHORT).show();
+                        Log.w(TAG, "Permission denied");
+                        Toast.makeText(this, "PixLink requires permission to capture screen!!", Toast.LENGTH_SHORT).show();
                     }
                     finish();
                 }
@@ -46,7 +44,8 @@ public class PermissionProxyActivity extends AppCompatActivity {
 
     private void startMirroringService(Intent projectionData) {
         Intent serviceIntent = new Intent(this, PixlinkForegroundService.class);
-        serviceIntent.setAction("ACTION_START_MIRRORING_NOW");
+        serviceIntent.setAction("START_MIRRORING_ACTION");
+
         serviceIntent.putExtra("EXTRA_PROJECTION_DATA", projectionData);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);

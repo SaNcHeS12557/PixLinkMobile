@@ -9,20 +9,13 @@
         android:id="@+id/scanQrButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Scan QR Code" />
+        android:text="@string/scan_qr_code" />
 
     <Button
         android:id="@+id/launchTouchpadButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Touchpad Emulator"
-        android:visibility="gone" />
-
-    <Button
-        android:id="@+id/startMirroringButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Screen Mirroring"
+        android:text="@string/touchpad_emulator"
         android:visibility="gone" />
 
 </LinearLayout>

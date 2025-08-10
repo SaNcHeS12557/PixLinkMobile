@@ -5,11 +5,8 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.BatteryManager;
+import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
@@ -41,7 +38,12 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     public void onCreate() {
         super.onCreate();
 
-        startForeground(1, createNotification());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        } else {
+            startForeground(1, createNotification());
+        }
+
         webSocketClient = WebSocketClient.getInstance();
 //        deviceStatusBuilder = new DeviceStatusBuilder();
         clipboardSyncManager = new ClipboardSyncManager(this);
@@ -91,8 +93,13 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
         if (intent != null) {
             final String action = intent.getAction();
 
-            if ("ACTION_START_MIRRORING_NOW".equals(action)) {
+            if ("START_MIRRORING_ACTION".equals(action)) {
                 Log.d(TAG, "Received action to start mirroring");
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+                }
+
                 Intent projectionData = intent.getParcelableExtra("EXTRA_PROJECTION_DATA");
 
                 if (screenMirroringManager != null && projectionData != null) {
@@ -125,7 +132,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
         scheduler.scheduleWithFixedDelay(() -> {
             try {
                 JSONObject status = DeviceStatusBuilder.buildStatus(this, deviceMetricsCollector);
-                Log.d(TAG, "Sending status: " + status.toString());
+                Log.d(TAG, "Sending status: " + status);
                 webSocketClient.sendMessage(status);
             } catch (Exception e) {
                 Log.e(TAG, "Error sending device status", e);
@@ -207,6 +214,10 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
 
         if(screenMirroringManager != null) {
             screenMirroringManager.stop();
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         }
     }
 }

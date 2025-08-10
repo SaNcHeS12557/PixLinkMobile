@@ -19,7 +19,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" /> <!-- phone access (IMEI) -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" /> <!-- storage access (Android 10–12) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> <!-- notifications (A13+) -->
+<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> &lt;!&ndash; notifications (A13+) &ndash;&gt;-->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" /> <!-- screen mirroring -->
 
