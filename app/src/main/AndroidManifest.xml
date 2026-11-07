@@ -1,27 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- internet network for WebSocket -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
 
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.INTERNET" /> <!-- wifi -->
+    <!-- Install-time permissions: granted automatically, never requested at runtime -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" /> <!-- camera -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- Runtime permissions: requested just in time, see PermissionsManager -->
+    <uses-permission android:name="android.permission.CAMERA" />                 <!-- pairing QR scan -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />     <!-- service notification, A13+ -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />      <!-- Bluetooth metrics, A12+ -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />   <!-- Wi-Fi SSID in metrics -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" /> <!-- phone access (IMEI) -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" /> <!-- storage access (Android 10–12) -->
-<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> &lt;!&ndash; notifications (A13+) &ndash;&gt;-->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" /> <!-- screen mirroring -->
 
 
     <application
@@ -51,6 +50,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".PermissionSetupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.PixLinkMobile" />
 
         <activity
             android:name=".PermissionProxyActivity"
