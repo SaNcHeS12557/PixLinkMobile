@@ -128,6 +128,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     }
 
     private void startSendingLoop() {
+        if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdownNow();
         scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleWithFixedDelay(() -> {
             try {

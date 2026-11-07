@@ -23,19 +23,14 @@ import java.util.List;
  * so we never ask for (or check) a permission that doesn't exist on the device.
  * Install-time permissions (INTERNET, FOREGROUND_SERVICE_*) are intentionally absent:
  * they are granted automatically and must not be requested at runtime.
+ * QR scanning needs no permission: Google Code Scanner owns the camera.
  */
 public final class PermissionsManager {
     private static final String PREFS = "pixlink_permissions";
-    private static final String KEY_SETUP_DONE = "setup_done";
     private static final String KEY_ASKED_PREFIX = "asked_";
     private static final String KEY_MIRRORING_EXPLAINED = "mirroring_explained";
 
     private PermissionsManager() {}
-
-    /** Needed to scan the pairing QR code. */
-    public static String[] cameraPermissions() {
-        return new String[]{Manifest.permission.CAMERA};
-    }
 
     /** Foreground-service notification (Android 13+). */
     public static String[] notificationPermissions() {
@@ -125,14 +120,6 @@ public final class PermissionsManager {
                 Uri.fromParts("package", context.getPackageName(), null));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(intent);
-    }
-
-    public static boolean isSetupDone(Context context) {
-        return prefs(context).getBoolean(KEY_SETUP_DONE, false);
-    }
-
-    public static void markSetupDone(Context context) {
-        prefs(context).edit().putBoolean(KEY_SETUP_DONE, true).apply();
     }
 
     public static boolean isMirroringExplained(Context context) {

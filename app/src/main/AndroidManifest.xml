@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="false" />
-
     <!-- Install-time permissions: granted automatically, never requested at runtime -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -16,12 +12,13 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
 
     <!-- Runtime permissions: requested just in time, see PermissionsManager -->
-    <uses-permission android:name="android.permission.CAMERA" />                 <!-- pairing QR scan -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />     <!-- service notification, A13+ -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />      <!-- Bluetooth metrics, A12+ -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />   <!-- Wi-Fi SSID in metrics -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+
+    <!-- QR scanning: Google Code Scanner (Play services) uses the camera on our behalf, so no CAMERA permission -->
 
     <application
         android:allowBackup="true"
@@ -39,22 +36,22 @@
         <activity
             android:name=".TouchpadActivity"
             android:exported="false"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+            android:theme="@style/Theme.PixLinkMobile" />
 
         <activity
             android:name=".MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.PixLinkMobile" />
+
+        <activity
+            android:name=".SetupActivity"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+            android:theme="@style/Theme.PixLinkMobile">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".PermissionSetupActivity"
-            android:exported="false"
-            android:theme="@style/Theme.PixLinkMobile" />
 
         <activity
             android:name=".PermissionProxyActivity"
@@ -63,12 +60,11 @@
             android:taskAffinity=""
             android:excludeFromRecents="true" />
 
-        <activity android:name=".QRScannerActivityPortrait"
-            android:screenOrientation="fullSensor"
-            android:stateNotNeeded="true"
-            android:theme="@style/Theme.PixLinkMobile"
-            android:windowSoftInputMode="stateAlwaysHidden"
-            tools:ignore="DiscouragedApi" />
+
+        <!-- Download the code scanner module at install time, so the first scan opens instantly -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
 
         <service
             android:name=".PixlinkForegroundService"

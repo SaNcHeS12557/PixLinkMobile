@@ -20,6 +20,7 @@ public class WebSocketClient {
     private WebSocketListenerEvents listener;
     private static WebSocketClient instance;
     private volatile boolean isConnected = false;
+    private volatile String serverUrl;
 
     private WebSocketClient() {
     }
@@ -32,6 +33,7 @@ public class WebSocketClient {
 
     public void connect(String url, WebSocketListenerEvents listener) {
         this.listener = listener;
+        this.serverUrl = url;
         OkHttpClient client = new OkHttpClient();
         Request request = new Request.Builder()
                 .url(url)
@@ -56,6 +58,7 @@ public class WebSocketClient {
                 Log.d(TAG, "Closing: " + code + " / " + reason);
                 isConnected = false;
                 webSocket.close(code, reason);
+                if (listener != null) listener.onFailure(); // notify UI: disconnected
             }
 
             @Override
@@ -90,6 +93,11 @@ public class WebSocketClient {
     public void close() {
         if (webSocket != null) webSocket.close(1000, "Bye!");
         isConnected = false;
+    }
+
+    /** Address of the PC we were last asked to connect to, e.g. ws://192.168.1.5:8080 */
+    public String getServerUrl() {
+        return serverUrl;
     }
 
     public boolean isConnected() {

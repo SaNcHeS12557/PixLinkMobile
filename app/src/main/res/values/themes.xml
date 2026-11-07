@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.PixLinkMobile" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- DayNight so the window background matches the Compose theme in dark mode (no white flash) -->
+    <style name="Theme.PixLinkMobile" parent="Theme.Material3.DayNight.NoActionBar" />
 
     <style name="Theme.AppCompat.Translucent" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
