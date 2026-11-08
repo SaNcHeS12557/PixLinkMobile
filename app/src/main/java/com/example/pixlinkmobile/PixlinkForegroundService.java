@@ -8,7 +8,9 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -19,14 +21,18 @@ import org.json.JSONObject;
 
 import okio.ByteString;
 
-public class PixlinkForegroundService extends Service implements WebSocketListenerEvents, ScreenMirroringManager.StateListener {
-    private static final String TAG = "PixLinkForegroundService";
+public class PixlinkForegroundService extends Service implements WebSocketListenerEvents, ScreenMirroringManager.Listener {
+    private static final String TAG = "PixlinkForegroundService";
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private WebSocketClient webSocketClient;
-    //    private DeviceStatusBuilder deviceStatusBuilder;
     private DeviceMetricsCollector deviceMetricsCollector;
     private ClipboardSyncManager clipboardSyncManager;
     private ScreenMirroringManager screenMirroringManager;
+
+    // Settings from the last init_mirroring_request, used once the user has given capture consent.
+    private ScreenMirroringManager.Config pendingMirroringConfig = ScreenMirroringManager.Config.legacy();
 
     private java.util.concurrent.ScheduledExecutorService scheduler;
 
@@ -45,20 +51,29 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
         }
 
         webSocketClient = WebSocketClient.getInstance();
-//        deviceStatusBuilder = new DeviceStatusBuilder();
         clipboardSyncManager = new ClipboardSyncManager(this);
 
         initScreenMirroring();
     }
 
     private void initScreenMirroring() {
-        screenMirroringManager = new ScreenMirroringManager(this, (frame) -> {
-            if (webSocketClient != null && webSocketClient.isConnected()) {
-                byte[] packet = ProtocolBuilder.buildVideoPacket(false, 0, 0, 0, null, java.nio.ByteBuffer.wrap(frame));
+        ScreenMirroringManager.VideoSink sink = new ScreenMirroringManager.VideoSink() {
+            @Override
+            public boolean isOpen() {
+                return webSocketClient.isConnected();
+            }
+
+            @Override
+            public long queueSize() {
+                return webSocketClient.queueSize();
+            }
+
+            @Override
+            public void send(byte[] packet) {
                 webSocketClient.send(ByteString.of(packet));
             }
-        });
-        screenMirroringManager.setStateListener(this);
+        };
+        screenMirroringManager = new ScreenMirroringManager(this, sink, this);
     }
 
     private Notification createNotification() {
@@ -96,6 +111,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
             if ("START_MIRRORING_ACTION".equals(action)) {
                 Log.d(TAG, "Received action to start mirroring");
 
+                // Android 14+: the mediaProjection foreground type must be active before getMediaProjection().
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
                 }
@@ -104,15 +120,8 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
 
                 if (screenMirroringManager != null && projectionData != null) {
                     int resultCode = projectionData.getIntExtra("EXTRA_RESULT_CODE", Activity.RESULT_CANCELED);
-                    screenMirroringManager.start(resultCode, projectionData);
-                    Log.d(TAG, "Notifying PC - mirroring started");
-                    try {
-                        JSONObject json = new JSONObject();
-                        json.put("event", "mirroring_started");
-                        webSocketClient.sendMessage(json);
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Error creating JSON for start event", e);
-                    }
+                    // "mirroring_started" is sent from onMirroringStarted, once the encoder is configured.
+                    screenMirroringManager.start(resultCode, projectionData, pendingMirroringConfig);
                 }
             } else if (intent.hasExtra("ws_url")) {
                 String url = intent.getStringExtra("ws_url");
@@ -144,6 +153,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (screenMirroringManager != null) screenMirroringManager.release();
         if (webSocketClient != null) webSocketClient.close();
         if (scheduler != null && !scheduler.isShutdown()) scheduler.shutdown();
     }
@@ -171,28 +181,12 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
 
     @Override
     public void onWebSocketMessage(String text) {
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        // Never block OkHttp's reader thread: it also answers the desktop's pings (RTT measurement).
+        mainHandler.post(() -> {
             try {
                 JSONObject json = new JSONObject(text);
-                if(json.has("command")) {
-                    String command = json.getString("command");
-
-                    if ("init_mirroring_request".equals(command)) {
-                        Log.d(TAG, "Request from PC - init mirroring");
-                        Intent intent = new Intent(this, PermissionProxyActivity.class);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-                        startActivity(intent);
-                        return;
-                    }
-
-                    if("stop_mirroring".equals(command)) {
-                        Log.d(TAG, "Received mirroring stopped command from PC");
-                        if(screenMirroringManager != null) {
-                            screenMirroringManager.stop();
-                        }
-                        return;
-                    }
+                if (json.has("command") && handleMirroringCommand(json.getString("command"), json)) {
+                    return;
                 }
                 clipboardSyncManager.handleIncomingData(text);
             } catch (Exception e) {
@@ -201,9 +195,66 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
         });
     }
 
+    /** @return true if the command was a mirroring command. */
+    private boolean handleMirroringCommand(String command, JSONObject json) {
+        switch (command) {
+            case "init_mirroring_request": {
+                ScreenMirroringManager.Config config = ScreenMirroringManager.Config.fromJson(json);
+                Log.d(TAG, "Request from PC - init mirroring, protocol v" + config.protocolVersion
+                        + ", level " + config.level + ", maxSize " + config.maxSize
+                        + ", " + config.fps + " fps, " + config.bitrateKbps + " kbps");
+                if (screenMirroringManager.isActive()) {
+                    // Already capturing: no new consent needed, just restart the stream with these settings.
+                    screenMirroringManager.applyConfig(config, true);
+                } else {
+                    pendingMirroringConfig = config;
+                    Intent intent = new Intent(this, PermissionProxyActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                }
+                return true;
+            }
+            case "mirroring_config":
+                screenMirroringManager.applyConfig(ScreenMirroringManager.Config.fromJson(json), false);
+                return true;
+            case "request_keyframe":
+                screenMirroringManager.requestKeyframe();
+                return true;
+            case "stop_mirroring":
+                Log.d(TAG, "Received mirroring stopped command from PC");
+                // Drop the mediaProjection foreground type only after capture has really stopped.
+                screenMirroringManager.stop(() -> mainHandler.post(this::restoreDataSyncForeground));
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // ScreenMirroringManager.Listener (called on its control thread; sending is thread-safe)
+
+    @Override
+    public void onMirroringStarted(ScreenMirroringManager.StreamInfo info) {
+        sendEvent(info, "mirroring_started");
+    }
+
+    @Override
+    public void onConfigApplied(ScreenMirroringManager.StreamInfo info) {
+        sendEvent(info, "mirroring_config_applied");
+    }
+
+    private void sendEvent(ScreenMirroringManager.StreamInfo info, String event) {
+        try {
+            JSONObject json = info.toEvent(event);
+            Log.d(TAG, "Notifying PC: " + json);
+            webSocketClient.sendMessage(json);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating JSON for " + event, e);
+        }
+    }
+
     @Override
     public void onMirroringSessionStopped() {
-        if(webSocketClient != null && webSocketClient.isConnected()) {
+        if (webSocketClient != null && webSocketClient.isConnected()) {
             try {
                 JSONObject json = new JSONObject();
                 json.put("event", "mirroring_stopped");
@@ -212,11 +263,11 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
                 Log.e(TAG, "Error creating JSON for stop event", e);
             }
         }
+        mainHandler.post(this::restoreDataSyncForeground);
+    }
 
-        if(screenMirroringManager != null) {
-            screenMirroringManager.stop();
-        }
-
+    /** Drops the mediaProjection foreground type once capture has ended. */
+    private void restoreDataSyncForeground() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         }
