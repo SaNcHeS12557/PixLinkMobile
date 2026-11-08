@@ -54,7 +54,7 @@ public class PixlinkForegroundService extends Service implements WebSocketListen
     private void initScreenMirroring() {
         screenMirroringManager = new ScreenMirroringManager(this, (frame) -> {
             if (webSocketClient != null && webSocketClient.isConnected()) {
-                byte[] packet = new ProtocolBuilder().buildVideoFramePacket(frame);
+                byte[] packet = ProtocolBuilder.buildVideoPacket(false, 0, 0, 0, null, java.nio.ByteBuffer.wrap(frame));
                 webSocketClient.send(ByteString.of(packet));
             }
         });

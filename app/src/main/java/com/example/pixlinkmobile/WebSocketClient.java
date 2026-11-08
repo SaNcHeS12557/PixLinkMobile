@@ -81,13 +81,25 @@ public class WebSocketClient {
 
     // sends
     //ByteString
-    public void send(ByteString bytes) {
-        if (webSocket != null) {
-            boolean sendStatus = webSocket.send(bytes);
-            Log.d(TAG, "WebSocket send result -> " + sendStatus);
-        } else {
+    // Called for every touchpad move and video frame: log failures only.
+    public boolean send(ByteString bytes) {
+        WebSocket ws = webSocket;
+        if (ws == null) {
             Log.w(TAG, "WebSocket is null -> NOT SENT");
+            return false;
         }
+        boolean queued = ws.send(bytes);
+        if (!queued) Log.w(TAG, "WebSocket send rejected (closing, or queue over 16 MiB)");
+        return queued;
+    }
+
+    /**
+     * Bytes accepted by send() but not yet written to the network. Video uses this for backpressure:
+     * OkHttp closes the connection once this exceeds 16 MiB.
+     */
+    public long queueSize() {
+        WebSocket ws = webSocket;
+        return ws != null ? ws.queueSize() : 0;
     }
 
     public void close() {
